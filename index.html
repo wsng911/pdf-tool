@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PDF处理工具</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #f0f2f5; --surface: #ffffff; --surface2: #f7f8fa;
+    --border: #e2e5ea; --border2: #d0d4db;
+    --text: #1a1d23; --text2: #5a6070; --text3: #8a90a0;
+    --accent: #2563eb; --accent-light: #eff4ff; --accent-hover: #1d4ed8;
+    --success: #16a34a; --success-light: #f0fdf4;
+    --danger: #dc2626; --danger-light: #fef2f2;
+    --warning: #d97706; --warning-light: #fffbeb;
+    --radius: 10px; --radius-sm: 6px;
+    --font: 'DM Sans', sans-serif; --mono: 'DM Mono', monospace;
+  }
+  body.dark {
+    --bg: #0f1117; --surface: #1a1d27; --surface2: #13151e;
+    --border: #2a2d3a; --border2: #353848;
+    --text: #e8eaf0; --text2: #8a90a8; --text3: #555a70;
+    --accent: #3b82f6; --accent-light: #1e2a45; --accent-hover: #60a5fa;
+    --success-light: #0f2a1a; --danger-light: #2a0f0f; --warning-light: #2a1f0a;
+  }
+  body {
+    font-family: var(--font); background: var(--bg); color: var(--text);
+    font-size: 13px; line-height: 1.5;
+    display: flex; align-items: flex-start; justify-content: center;
+    padding: 20px; min-height: 100vh; transition: background .2s, color .2s;
+  }
+  .window {
+    width: 860px; background: var(--surface);
+    border-radius: 14px;
+    box-shadow: 0 20px 60px rgba(0,0,0,.12), 0 0 0 1px var(--border);
+    overflow: hidden;
+  }
+  .titlebar {
+    display: flex; align-items: center; padding: 12px 16px;
+    background: var(--surface2); border-bottom: 1px solid var(--border); gap: 8px;
+  }
+  .titlebar-title { flex: 1; text-align: center; font-size: 12.5px; font-weight: 500; color: var(--text2); }
+  .theme-toggle {
+    display: flex; align-items: center; gap: 6px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 20px; padding: 3px 10px; cursor: pointer;
+    font-size: 11.5px; color: var(--text2); transition: all .15s;
+  }
+  .theme-toggle:hover { border-color: var(--accent); color: var(--accent); }
+  .theme-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+  .content { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+  .top-row { display: grid; grid-template-columns: 1fr 280px; gap: 12px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+  .card-header {
+    padding: 9px 14px; background: var(--surface2); border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .card-title { font-size: 11.5px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: .06em; }
+  .card-body { padding: 12px 14px; }
+  .file-toolbar { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 5px 12px; border-radius: var(--radius-sm);
+    font-size: 12.5px; font-weight: 500; font-family: var(--font);
+    cursor: pointer; border: 1px solid transparent; transition: all .15s; white-space: nowrap;
+  }
+  .btn-default { background: var(--surface2); border-color: var(--border2); color: var(--text); }
+  .btn-default:hover { background: var(--border); }
+  .btn-primary {
+    background: var(--accent); color: white; border-color: var(--accent);
+    font-size: 14px; padding: 10px 20px; border-radius: 8px;
+    width: 100%; justify-content: center;
+  }
+  .btn-primary:hover { background: var(--accent-hover); }
+  .btn-primary:active { transform: scale(.98); }
+  .btn-primary:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+  .btn-ghost { background: transparent; color: var(--text2); border-color: var(--border); font-size: 12px; padding: 5px 10px; }
+  .btn-ghost:hover { background: var(--surface2); color: var(--text); }
+  .btn-danger-ghost { background: transparent; color: var(--danger); border-color: var(--border); font-size: 12px; padding: 5px 10px; }
+  .btn-danger-ghost:hover { background: var(--danger-light); border-color: var(--danger); }
+  .file-list {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); min-height: 92px; max-height: 160px;
+    overflow-y: auto; padding: 6px; position: relative;
+  }
+  .file-item {
+    display: flex; align-items: center; gap: 6px; padding: 4px 7px;
+    border-radius: 4px; cursor: pointer; border: 1px solid transparent;
+    color: var(--text2); font-family: var(--mono); font-size: 11.5px;
+    transition: all .1s;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .file-item:hover { background: var(--surface); border-color: var(--border); }
+  .file-item.selected { background: var(--accent-light); border-color: var(--accent); color: var(--accent); }
+  .file-list-empty {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    color: var(--text3); font-size: 12px; pointer-events: none;
+  }
+  .action-panel { display: flex; flex-direction: column; gap: 10px; }
+  .stats-row {
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+    padding: 8px; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  }
+  .stats-label { font-size: 11px; color: var(--text3); }
+  .stats-value { font-size: 15px; font-weight: 600; color: var(--accent); font-variant-numeric: tabular-nums; }
+  .action-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .param-row {
+    display: flex; align-items: center; gap: 10px; padding: 8px 12px;
+    background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  }
+  .param-label { font-size: 12px; font-weight: 500; color: var(--text2); min-width: 72px; flex-shrink: 0; }
+  .param-content { display: flex; align-items: center; gap: 8px; flex: 1; flex-wrap: wrap; }
+  .radio-group { display: flex; gap: 4px; flex-wrap: wrap; }
+  .radio-btn {
+    display: flex; align-items: center; gap: 5px; padding: 4px 10px;
+    border-radius: var(--radius-sm); border: 1px solid var(--border);
+    background: var(--surface); cursor: pointer; font-size: 12px; color: var(--text2);
+    transition: all .12s; user-select: none;
+  }
+  .radio-btn input { display: none; }
+  .radio-btn:has(input:checked) { background: var(--accent-light); border-color: var(--accent); color: var(--accent); font-weight: 500; }
+  .radio-dot { width: 7px; height: 7px; border-radius: 50%; border: 1.5px solid currentColor; transition: all .12s; }
+  .radio-btn:has(input:checked) .radio-dot { background: var(--accent); border-color: var(--accent); }
+  .toggle-wrap { display: flex; align-items: center; gap: 6px; }
+  .toggle { position: relative; width: 32px; height: 18px; cursor: pointer; }
+  .toggle input { display: none; }
+  .toggle-track { position: absolute; inset: 0; background: var(--border2); border-radius: 9px; transition: background .2s; }
+  .toggle input:checked + .toggle-track { background: var(--accent); }
+  .toggle-thumb { position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: white; box-shadow: 0 1px 3px rgba(0,0,0,.2); transition: transform .2s; }
+  .toggle input:checked ~ .toggle-thumb { transform: translateX(14px); }
+  .input {
+    background: var(--surface); border: 1px solid var(--border2); border-radius: var(--radius-sm);
+    padding: 4px 8px; font-family: var(--mono); font-size: 12px; color: var(--text);
+    width: 70px; transition: border .15s; outline: none;
+  }
+  .input:focus { border-color: var(--accent); }
+  .input-label { font-size: 11.5px; color: var(--text3); }
+  .gs-status {
+    display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px;
+    border-radius: var(--radius-sm); font-size: 11.5px; cursor: pointer;
+    border: 1px solid var(--border); background: var(--surface); color: var(--text2); transition: all .12s;
+  }
+  .gs-status:hover { border-color: var(--accent); color: var(--accent); }
+  .gs-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--success); }
+  .gs-dot.err { background: var(--danger); }
+  .note { font-size: 11.5px; color: var(--text3); padding: 6px 10px; background: var(--warning-light); border-left: 2px solid var(--warning); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; line-height: 1.6; }
+  .collapsible-trigger {
+    display: flex; align-items: center; gap: 8px; padding: 9px 14px; cursor: pointer; user-select: none;
+    background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius);
+    transition: all .15s; font-size: 12.5px; font-weight: 500; color: var(--text2);
+  }
+  .collapsible-trigger:hover { border-color: var(--accent); color: var(--accent); }
+  .collapsible-trigger.open { border-radius: var(--radius) var(--radius) 0 0; border-bottom: none; }
+  .chevron { width: 14px; height: 14px; margin-left: auto; transition: transform .2s; color: var(--text3); }
+  .collapsible-trigger.open .chevron { transform: rotate(180deg); }
+  .collapsible-body {
+    border: 1px solid var(--border); border-top: none;
+    border-radius: 0 0 var(--radius) var(--radius); padding: 14px;
+    display: none; flex-direction: column; gap: 8px;
+    animation: slideDown .15s ease;
+  }
+  .collapsible-body.open { display: flex; }
+  @keyframes slideDown { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+  .progress-section {
+    background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 12px 14px; display: flex; flex-direction: column; gap: 6px;
+  }
+  .progress-bar-wrap { background: var(--border); border-radius: 4px; height: 5px; overflow: hidden; }
+  .progress-bar { height: 100%; width: 0%; background: linear-gradient(90deg, var(--accent), #60a5fa); border-radius: 4px; transition: width .3s ease; }
+  .progress-text { font-size: 12px; color: var(--text2); display: flex; justify-content: space-between; align-items: center; }
+  .output-row { display: flex; align-items: center; gap: 8px; }
+  .output-path { flex: 1; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 5px 10px; font-family: var(--mono); font-size: 11.5px; color: var(--text2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .divider { height: 1px; background: var(--border); margin: 2px 0; }
+  .section-label { font-size: 11px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: .07em; }
+  .check-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .check-item { display: flex; align-items: center; gap: 5px; cursor: pointer; }
+  .check-item input[type=checkbox] { width: 14px; height: 14px; accent-color: var(--accent); cursor: pointer; }
+  .check-item span { font-size: 12px; color: var(--text2); }
+  .badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 500; }
+  .badge-success { background: var(--success-light); color: var(--success); }
+  .badge-warning { background: var(--warning-light); color: var(--warning); }
+  .badge-danger { background: var(--danger-light); color: var(--danger); }
+  .params-grid { display: flex; flex-direction: column; gap: 8px; }
+  ::-webkit-scrollbar { width: 5px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 10px; }
+  .toast {
+    position: fixed; bottom: 20px; right: 20px; z-index: 999;
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 10px 16px; font-size: 12.5px; color: var(--text2);
+    box-shadow: 0 8px 24px rgba(0,0,0,.15);
+    animation: fadeIn .2s ease; display: none;
+  }
+  .toast.show { display: block; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+  /* 只补这两行，防止“输出位置”挤成两行 */
+  #outputBody .radio-group { flex-wrap: nowrap; }
+  #outputBody .radio-btn { white-space: nowrap; }
+</style>
+</head>
+<body>
+<div class="window">
+  <div class="titlebar">
+    <div class="titlebar-title">PDF处理工具</div>
+    <div class="theme-toggle" onclick="toggleTheme()">
+      <div class="theme-dot"></div>
+      <span id="themeLabel">亮色</span>
+    </div>
+  </div>
+
+  <div class="content">
+    <div class="top-row">
+      <div class="card">
+        <div class="card-header"><span class="card-title">待处理 PDF 文件</span></div>
+        <div class="card-body">
+          <div class="file-toolbar">
+            <button class="btn btn-default" onclick="addFiles()">
+              <svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M8 2v12M2 8h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>添加文件
+            </button>
+            <button class="btn btn-default" onclick="addFolder()">
+              <svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M2 4h4l2 2h6v8H2z" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linejoin="round"/></svg>添加文件夹
+            </button>
+            <button class="btn btn-ghost" onclick="removeSelected()">移除选中</button>
+            <button class="btn btn-danger-ghost" onclick="clearList()">清空</button>
+          </div>
+          <div class="file-list" id="fileList" ondragover="event.preventDefault()" ondrop="handleDrop(event)">
+            <div class="file-list-empty" id="emptyTip">拖拽 PDF 文件至此，或点击「添加文件」</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="action-panel">
+        <div class="card">
+          <div class="card-header"><span class="card-title">快捷操作</span></div>
+          <div class="card-body" style="display:flex;flex-direction:column;gap:10px;">
+            <button class="btn btn-primary" id="startBtn" onclick="startProcess()">
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M5 3l8 5-8 5V3z" fill="white"/></svg>开始处理
+            </button>
+            <div class="stats-row">
+              <div class="stats-label">页数统计</div>
+              <div class="stats-value" id="statsVal">0 个文件 / 0 页</div>
+            </div>
+            <div class="divider"></div>
+            <div class="action-btns">
+              <button class="btn btn-ghost" style="justify-content:center" onclick="openOutputDir()">
+                <svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M2 10V13h12v-3M8 2v8M5 5l3-3 3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>输出目录
+              </button>
+              <button class="btn btn-ghost" style="justify-content:center" onclick="checkGS()">
+                <svg width="11" height="11" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.5"/><path d="M8 7v5M8 5v.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>检查 GS
+              </button>
+              <button class="btn btn-danger-ghost" style="justify-content:center;grid-column:span 2" onclick="quitApp()">
+                <svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M10 2h3v12h-3M7 5l-3 3 3 3M4 8h7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>退出
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><span class="card-title">处理参数</span></div>
+      <div class="card-body">
+        <div class="params-grid">
+          <div class="param-row">
+            <div class="param-label">页码范围</div>
+            <div class="param-content">
+              <input class="input" style="width:130px" type="text" placeholder="留空=全部" id="pageRange">
+              <span class="input-label">示例：1-3, 5, 8-10</span>
+            </div>
+          </div>
+          <div class="param-row">
+            <div class="param-label">输出模式</div>
+            <div class="param-content">
+              <div class="radio-group">
+                <label class="radio-btn"><input type="radio" name="outputMode" value="color" checked><span class="radio-dot"></span>彩色（保留矢量）</label>
+                <label class="radio-btn"><input type="radio" name="outputMode" value="gray_gs"><span class="radio-dot"></span>灰度（Ghostscript）</label>
+                <label class="radio-btn"><input type="radio" name="outputMode" value="gray_raster"><span class="radio-dot"></span>灰度（稳定栅格）</label>
+              </div>
+            </div>
+          </div>
+          <div class="param-row">
+            <div class="param-label">其他选项</div>
+            <div class="param-content" style="gap:14px;">
+              <div class="toggle-wrap">
+                <label class="toggle"><input type="checkbox" id="autoRotate" checked><div class="toggle-track"></div><div class="toggle-thumb"></div></label>
+                <span style="font-size:12px;color:var(--text2)">自动旋转适配 A4</span>
+              </div>
+              <div class="toggle-wrap">
+                <span class="input-label">栅格 DPI</span>
+                <input class="input" type="number" value="200" id="rasterDpi" style="width:60px;">
+              </div>
+              <div class="toggle-wrap">
+                <span class="input-label">页边距(mm)</span>
+                <input class="input" type="number" value="8" id="marginMm" style="width:50px;">
+              </div>
+              <div class="gs-status" id="gsStatus" onclick="checkGS()">
+                <div class="gs-dot" id="gsDot"></div>
+                <span id="gsText">检测中…</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">压缩设置</span>
+        <div class="toggle-wrap">
+          <label class="toggle"><input type="checkbox" id="compressToggle" onchange="toggleCompress(this)"><div class="toggle-track"></div><div class="toggle-thumb"></div></label>
+          <span style="font-size:12px;color:var(--text2)">启用目标大小压缩</span>
+        </div>
+      </div>
+      <div class="card-body" id="compressBody" style="opacity:.45;pointer-events:none;">
+        <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:8px;">
+          <div class="toggle-wrap"><span class="input-label">目标大小 (MB)</span><input class="input" type="number" value="10" id="targetMb"></div>
+          <div class="toggle-wrap"><span class="input-label">图片质量</span><input class="input" type="number" value="72" id="jpegQ"></div>
+          <div class="toggle-wrap"><span class="input-label">最大 DPI</span><input class="input" type="number" value="160" id="maxDpi"></div>
+        </div>
+        <div class="note">此功能通过重渲染 PDF 来尽量逼近目标大小，适合扫描件；启用后文字/矢量可能不再保留。</div>
+      </div>
+    </div>
+
+    <div class="collapsible">
+      <div class="collapsible-trigger open" id="outputTrigger" onclick="toggleOutput()">
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M2 10V13h12v-3M8 2v8M5 5l3-3 3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        输出 / 打印（可选）
+        <svg class="chevron" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div class="collapsible-body open" id="outputBody">
+        <div class="section-label">输出位置</div>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <div class="radio-group">
+            <label class="radio-btn"><input type="radio" name="outLoc" value="source" onchange="toggleOutDir()"><span class="radio-dot"></span>原文件目录</label>
+            <label class="radio-btn"><input type="radio" name="outLoc" value="specified" checked onchange="toggleOutDir()"><span class="radio-dot"></span>指定目录</label>
+          </div>
+        </div>
+        <div class="output-row">
+          <div class="output-path" id="outPathDisplay">加载中…</div>
+          <button class="btn btn-ghost" id="outDirBtn" onclick="selectOutDir()">选择…</button>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+          <div class="toggle-wrap"><span class="input-label">文件名后缀</span><input class="input" type="text" value="_A4" id="suffix" style="width:70px;"></div>
+          <div class="toggle-wrap" style="margin-left:8px;">
+            <span class="input-label">灰度自动追加后缀</span>
+            <label class="toggle" style="margin-left:4px;"><input type="checkbox" id="autoGraySuffix" checked><div class="toggle-track"></div><div class="toggle-thumb"></div></label>
+          </div>
+          <div class="toggle-wrap" style="margin-left:8px;">
+            <span class="input-label">完成后打开目录</span>
+            <label class="toggle" style="margin-left:4px;"><input type="checkbox" id="openDirAfter" checked><div class="toggle-track"></div><div class="toggle-thumb"></div></label>
+          </div>
+        </div>
+        <div class="divider"></div>
+        <div class="section-label">完成后操作</div>
+        <div class="check-row">
+          <label class="check-item"><input type="checkbox" id="openFirstPdf" checked><span>打开首个 PDF</span></label>
+          <label class="check-item"><input type="checkbox" id="notifyDone" checked><span>系统通知</span></label>
+        </div>
+        <div class="output-row" style="gap:8px;">
+          <span class="input-label">打印机:</span>
+          <span id="printerBadge" class="badge badge-warning">未找到（仅导出 PDF）</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="progress-section">
+      <div class="progress-text">
+        <span id="progressStatus">就绪</span>
+        <span id="progressPct" style="font-size:11.5px;color:var(--text3);font-variant-numeric:tabular-nums;"></span>
+      </div>
+      <div class="progress-bar-wrap"><div class="progress-bar" id="progressBar"></div></div>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+let files = [];
+let selectedIdx = -1;
+let dark = false;
+let outDir = '';
+let processing = false;
+let toastTimer = null;
+
+async function pyCall(method, ...args) {
+  try {
+    if (window.pywebview && window.pywebview.api && typeof window.pywebview.api[method] === 'function') {
+      return await window.pywebview.api[method](...args);
+    }
+  } catch (e) {
+    console.error('pyCall error:', method, e);
+  }
+  return null;
+}
+
+window.__pdfEvent = function(payload) {
+  const { event, data } = payload || {};
+
+  if (event === 'progress') {
+    const percent = Math.max(0, Math.min(100, Number(data?.percent || 0)));
+    document.getElementById('progressBar').style.width = percent + '%';
+    document.getElementById('progressStatus').textContent = data?.status || '处理中…';
+    document.getElementById('progressPct').textContent = percent < 100 ? percent + '%' : '';
+  } else if (event === 'done') {
+    processing = false;
+    resetStartBtn();
+    document.getElementById('progressBar').style.width = '100%';
+    document.getElementById('progressStatus').textContent = '处理完成';
+    document.getElementById('progressPct').textContent = '';
+    const count = Array.isArray(data?.output_paths) ? data.output_paths.length : 0;
+    showToast('✓ 处理完成，共 ' + count + ' 个文件');
+  } else if (event === 'error') {
+    processing = false;
+    resetStartBtn();
+    document.getElementById('progressStatus').textContent = '处理失败';
+    document.getElementById('progressPct').textContent = '';
+    showToast('错误：' + (data || '未知错误'), 'danger');
+  } else if (event === 'cancelled') {
+    processing = false;
+    resetStartBtn();
+    document.getElementById('progressStatus').textContent = '已取消';
+    document.getElementById('progressPct').textContent = '';
+    showToast('处理已取消');
+  } else if (event === 'file_error') {
+    const fileName = data?.file ? data.file.split(/[\\/]/).pop() : '未知文件';
+    showToast('文件错误: ' + fileName + ' — ' + (data?.error || '未知错误'), 'danger');
+  }
+};
+
+function resetStartBtn() {
+  const btn = document.getElementById('startBtn');
+  btn.disabled = false;
+  btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M5 3l8 5-8 5V3z" fill="white"/></svg>开始处理';
+}
+
+async function addFiles() {
+  const paths = await pyCall('pick_files');
+  if (paths && paths.length) addPaths(paths);
+}
+
+async function addFolder() {
+  const folder = await pyCall('pick_folder');
+  if (!folder) return;
+
+  const paths = await pyCall('scan_folder', folder);
+  if (paths && paths.length) {
+    addPaths(paths);
+    showToast(`已添加文件夹，共 ${paths.length} 个 PDF`);
+  } else {
+    showToast('该文件夹中未找到 PDF', 'warn');
+  }
+}
+
+function addPaths(paths) {
+  let changed = false;
+  paths.forEach(p => {
+    if (p && !files.includes(p)) {
+      files.push(p);
+      changed = true;
+    }
+  });
+  if (changed) {
+    renderFileList();
+    updateStats();
+  }
+}
+
+function renderFileList() {
+  const list = document.getElementById('fileList');
+  const empty = document.getElementById('emptyTip');
+  list.querySelectorAll('.file-item').forEach(e => e.remove());
+  empty.style.display = files.length ? 'none' : 'flex';
+
+  files.forEach((f, i) => {
+    const div = document.createElement('div');
+    div.className = 'file-item' + (i === selectedIdx ? ' selected' : '');
+
+    const icon = document.createElement('span');
+    icon.innerHTML = '<svg width="10" height="10" viewBox="0 0 16 16" fill="none"><path d="M3 2h7l3 3v9H3V2z" stroke="currentColor" stroke-width="1.3" fill="none"/><path d="M10 2v4h4" stroke="currentColor" stroke-width="1.3" fill="none"/></svg>';
+
+    const text = document.createElement('span');
+    text.textContent = f;
+
+    div.appendChild(icon);
+    div.appendChild(text);
+    div.onclick = () => { selectedIdx = i; renderFileList(); };
+    list.appendChild(div);
+  });
+}
+
+function removeSelected() {
+  if (selectedIdx >= 0 && selectedIdx < files.length) {
+    files.splice(selectedIdx, 1);
+    selectedIdx = Math.min(selectedIdx, files.length - 1);
+    renderFileList();
+    updateStats();
+  }
+}
+
+function clearList() {
+  files = [];
+  selectedIdx = -1;
+  renderFileList();
+  updateStats();
+}
+
+async function updateStats() {
+  if (files.length === 0) {
+    document.getElementById('statsVal').textContent = '0 个文件 / 0 页';
+    return;
+  }
+  const info = await pyCall('get_pdf_info', files);
+  if (info && info.total_pages !== undefined) {
+    document.getElementById('statsVal').textContent = `${files.length} 个文件 / ${info.total_pages} 页`;
+  } else {
+    document.getElementById('statsVal').textContent = `${files.length} 个文件`;
+  }
+}
+
+function handleDrop(e) {
+  e.preventDefault();
+  const paths = [...e.dataTransfer.files]
+    .filter(f => f.name.toLowerCase().endsWith('.pdf'))
+    .map(f => f.path)
+    .filter(Boolean);
+
+  if (paths.length) addPaths(paths);
+}
+
+async function startProcess() {
+  if (processing) {
+    await pyCall('cancel_process');
+    return;
+  }
+
+  if (!files.length) {
+    showToast('请先添加 PDF 文件', 'warn');
+    return;
+  }
+
+  processing = true;
+
+  const btn = document.getElementById('startBtn');
+  btn.disabled = false;
+  btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="4" y="4" width="3" height="8" fill="white"/><rect x="9" y="4" width="3" height="8" fill="white"/></svg>取消处理';
+
+  document.getElementById('progressBar').style.width = '0%';
+  document.getElementById('progressStatus').textContent = '准备中…';
+  document.getElementById('progressPct').textContent = '';
+
+  const config = buildConfig();
+  const res = await pyCall('start_process', config);
+
+  if (res && res.ok === false) {
+    processing = false;
+    resetStartBtn();
+    document.getElementById('progressStatus').textContent = '启动失败';
+    showToast(res.error || '启动任务失败', 'danger');
+  }
+}
+
+function buildConfig() {
+  const mode = document.querySelector('[name=outputMode]:checked')?.value || 'color';
+  const outLoc = document.querySelector('[name=outLoc]:checked')?.value || 'specified';
+
+  return {
+    files,
+    page_range: document.getElementById('pageRange').value.trim(),
+    mode,
+    auto_rotate_a4: document.getElementById('autoRotate').checked,
+    raster_dpi: parseInt(document.getElementById('rasterDpi').value) || 200,
+    margin_mm: parseInt(document.getElementById('marginMm').value) || 8,
+    compress: {
+      enabled: document.getElementById('compressToggle').checked,
+      target_mb: parseFloat(document.getElementById('targetMb').value) || 10,
+      jpeg_quality: parseInt(document.getElementById('jpegQ').value) || 72,
+      max_dpi: parseInt(document.getElementById('maxDpi').value) || 160,
+    },
+    output: {
+      use_source_dir: outLoc === 'source',
+      dir: outDir,
+      suffix: document.getElementById('suffix').value || '_A4',
+      auto_suffix_gray: document.getElementById('autoGraySuffix').checked,
+      open_dir_after: document.getElementById('openDirAfter').checked,
+      open_first_pdf: document.getElementById('openFirstPdf').checked,
+      notify: document.getElementById('notifyDone').checked,
+    }
+  };
+}
+
+async function openOutputDir() {
+  const outLoc = document.querySelector('[name=outLoc]:checked')?.value || 'specified';
+
+  let dir = outDir;
+
+  if (outLoc === 'source') {
+    const ref = selectedIdx >= 0 ? files[selectedIdx] : files[0];
+    if (ref) {
+      dir = ref.replace(/[\\/][^\\/]+$/, '');
+    }
+  }
+
+  if (!dir) {
+    showToast('没有可打开的目录', 'warn');
+    return;
+  }
+
+  await pyCall('open_directory', dir);
+}
+
+async function selectOutDir() {
+  const d = await pyCall('pick_output_dir');
+  if (d) {
+    outDir = d;
+    document.getElementById('outPathDisplay').textContent = d;
+  }
+}
+
+async function syncDefaultOutputDir() {
+  const d = await pyCall('get_default_output_dir');
+  if (d) {
+    outDir = d;
+    document.getElementById('outPathDisplay').textContent = d;
+  } else if (!outDir) {
+    outDir = '未设置';
+    document.getElementById('outPathDisplay').textContent = outDir;
+  }
+}
+
+async function checkGS() {
+  if (!window.pywebview) {
+    document.getElementById('gsText').textContent = '（浏览器预览模式）';
+    document.getElementById('gsDot').className = 'gs-dot';
+    return;
+  }
+
+  const r = await pyCall('check_ghostscript');
+  const dot = document.getElementById('gsDot');
+  const txt = document.getElementById('gsText');
+
+  if (r && r.ok) {
+    dot.className = 'gs-dot';
+    txt.textContent = `GS ${r.version} 就绪`;
+    showToast(`Ghostscript ${r.version} — ${r.path}`);
+  } else {
+    dot.className = 'gs-dot err';
+    txt.textContent = '未找到 Ghostscript';
+    showToast('未找到 Ghostscript，灰度 GS 模式将自动回退为稳定栅格灰度', 'warn');
+  }
+}
+
+async function quitApp() {
+  if (confirm('确认退出？')) await pyCall('quit');
+}
+
+function toggleOutput() {
+  const t = document.getElementById('outputTrigger');
+  const b = document.getElementById('outputBody');
+  t.classList.toggle('open');
+  b.classList.toggle('open');
+}
+
+function toggleCompress(cb) {
+  const body = document.getElementById('compressBody');
+  body.style.opacity = cb.checked ? '1' : '.45';
+  body.style.pointerEvents = cb.checked ? 'auto' : 'none';
+}
+
+function toggleOutDir() {
+  const isSource = document.querySelector('[name=outLoc]:checked')?.value === 'source';
+  const pathEl = document.getElementById('outPathDisplay');
+  const btnEl = document.getElementById('outDirBtn');
+
+  pathEl.style.opacity = isSource ? '.4' : '1';
+
+  if (btnEl) {
+    btnEl.disabled = isSource;
+    btnEl.style.opacity = isSource ? '.5' : '1';
+    btnEl.style.pointerEvents = isSource ? 'none' : 'auto';
+  }
+}
+
+function toggleTheme() {
+  dark = !dark;
+  document.body.classList.toggle('dark', dark);
+  document.getElementById('themeLabel').textContent = dark ? '暗色' : '亮色';
+}
+
+function showToast(msg, type = 'normal') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.color =
+    type === 'danger' ? 'var(--danger)' :
+    type === 'warn' ? 'var(--warning)' :
+    'var(--text2)';
+
+  t.classList.add('show');
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    t.classList.remove('show');
+  }, 3000);
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+  renderFileList();
+  toggleOutDir();
+  toggleCompress(document.getElementById('compressToggle'));
+
+  if (!window.pywebview) {
+    outDir = '浏览器预览模式';
+    document.getElementById('outPathDisplay').textContent = outDir;
+    document.getElementById('gsText').textContent = '（浏览器预览模式）';
+    document.getElementById('gsDot').className = 'gs-dot';
+  }
+});
+
+window.addEventListener('pywebviewready', async () => {
+  await syncDefaultOutputDir();
+  toggleOutDir();
+  await checkGS();
+});
+</script>
+</body>
+</html>
